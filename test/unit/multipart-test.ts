@@ -1,10 +1,11 @@
 import { assert } from 'chai';
 import { setup } from 'f-mocha';
-import { bufferReader, bufferWriter, multipartFormatter, multipartParser } from '../..';
+import { wait } from 'f-promise';
+import { bufferReader, bufferWriter, multipartFormatter, multipartParser, Reader, Writer, BinaryReader, binaryReader } from '../..';
 import { IncomingHttpHeaders } from 'http';
 setup();
 
-const { equal, ok, strictEqual } = assert;
+const { ok, strictEqual } = assert;
 
 const boundary = '------------myBoundary';
 
@@ -19,21 +20,21 @@ type Part = {
 	body: string;
 };
 
-function testStream() {
+function testStreamMixed(body1?: string, body2?: string) {
 	const parts = [{
 		headers: {
 			A: 'VA1',
 			B: 'VB1',
 			'Content-Type': 'text/plain',
 		},
-		body: 'C1',
+		body: body1 || 'C1',
 	}, {
 		headers: {
 			'content-type': 'text/plain',
 			A: 'VA2',
 			B: 'VB2',
 		},
-		body: 'C2',
+		body: body2 || 'C2',
 	}] as { headers: IncomingHttpHeaders; body: string; }[];
 
 	function formatPart(part: Part) {
@@ -44,7 +45,7 @@ function testStream() {
 	return bufferReader(Buffer.from(parts.map(formatPart).join(''), 'binary'));
 }
 
-function testStreamFormData() {
+function testStreamFormData(body1?: string, body2?: string): Reader<Buffer> {
     const parts = [{
         headers: {
             A: 'VA1',
@@ -52,7 +53,7 @@ function testStreamFormData() {
             'Content-Type': 'text/plain',
             'content-disposition': 'form-data; name="c1";',
         },
-        body: 'C1',
+        body: body1 || 'C1',
     }, {
         headers: {
             'content-type': 'text/plain',
@@ -60,7 +61,7 @@ function testStreamFormData() {
             A: 'VA2',
             B: 'VB2',
         },
-        body: 'C2',
+        body: body2 || 'C2',
     }] as { headers: IncomingHttpHeaders; body: string; }[];
 
     const CR_LF = '\r\n';
@@ -74,9 +75,29 @@ function testStreamFormData() {
     return bufferReader(Buffer.from(arrayBuffer, 'binary'));
 }
 
+function yieldMapper(buffer: Buffer) {
+    wait(cb => setImmediate(cb));
+    return buffer;
+}
+
+function binaryToBufferReaderTransformer(reader: BinaryReader, writer: Writer<Buffer>) {
+    let chunkSize = 40 * 1024;
+    // With our setting:
+    // - read the whole stream.
+    // - chunkSize always bigger than file size.
+    // - trigger multipart hk.notify()
+    let r = reader.read(chunkSize);
+    while (r) {
+        writer.write(r);
+        // reread end (undefined)
+        // and retrigger multipart hk.notify()
+        r = reader.read(chunkSize);
+    }
+}
+
 describe(module.id, () => {
 	it('basic multipart/mixed', () => {
-		const source = testStream();
+		const source = testStreamMixed();
 		const stream = source.transform(multipartParser(headers('mixed')));
 		let part = stream.read();
 		ok(part != null, 'part != null');
@@ -104,7 +125,7 @@ describe(module.id, () => {
 
 	it('multipart/mixed roundtrip', () => {
 		const heads = headers('mixed');
-		const source = testStream();
+		const source = testStreamMixed();
 		const writer = bufferWriter();
 		source.transform(multipartParser(heads)).transform(multipartFormatter(heads)).pipe(writer);
 		const result = writer.toBuffer();
@@ -154,4 +175,54 @@ describe(module.id, () => {
         bufferReader(result).transform(multipartParser(heads)).transform(multipartFormatter(heads)).pipe(writer2);
         strictEqual(result.toString('binary'), writer2.toBuffer().toString('binary'));
     });
+
+    it('mutlipart/form-data with binaryReader and applying transformation', () => {
+        const expectedLength = [10 * 1024, 20 * 1024];
+
+        const heads = headers('form-data');
+        const source = testStreamFormData(Buffer.alloc(expectedLength[0]).toString(), Buffer.alloc(expectedLength[1]).toString());
+
+        const receivedLength = [0, 0];
+        source
+        // Force stream to not be read in same event loop
+            .map(yieldMapper)
+            .transform(multipartParser(heads))
+            .forEach((partReader: Reader<Buffer>, i) => {
+
+                binaryReader(partReader)
+                    // This transform coupled with binaryReader triggers two final reads in part reader
+                    .transform(binaryToBufferReaderTransformer)
+                    .forEach((b) => {
+                        receivedLength[i] += b.length;
+                    });
+
+                assert.equal(receivedLength[i], expectedLength[i]);
+            });
+    });
+
+    // Moving handshake does not fix the problem.
+    // I suspect a bug inside mixed parser function that does not support multiple read in part last chunk (return undefined),
+    // because of binaryReader with transformer
+    it.skip('mutlipart/mixed with binaryReader and applying transformation', () => {
+        const expectedLength = [10 * 1024, 20 * 1024];
+
+        const heads = headers('mixed');
+        const source = testStreamMixed(Buffer.alloc(expectedLength[0]).toString(), Buffer.alloc(expectedLength[1]).toString());
+
+        const receivedLength = [0, 0];
+        source
+            .map(yieldMapper)
+            .transform(multipartParser(heads))
+            .forEach((partReader: Reader<Buffer>, i) => {
+
+                binaryReader(partReader)
+                    .transform(binaryToBufferReaderTransformer)
+                    .forEach((b) => {
+                        receivedLength[i] += b.length;
+                    });
+
+                assert.equal(receivedLength[i], expectedLength[i]);
+            });
+    });
+
 });
