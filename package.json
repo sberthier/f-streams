@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@types/mz": "0.0.30",
-    "f-promise": "https://github.com/sberthier/f-promise.git#remove-streamline-runtime",
+    "f-promise": "https://github.com/sberthier/f-promise.git#e9171110ed7ed020f9ac5d0ddf39aa94d13d318a",
     "mz": "^2.7.0"
   },
   "devDependencies": {
@@ -26,7 +26,7 @@
     "@types/mocha": "^2.2.43",
     "@types/node": "^8.10.32",
     "chai": "^3.5.0",
-    "f-mocha": "^1.1.4",
+    "f-mocha": "https://github.com/sberthier/f-mocha.git#062eb606443a67eacb918a5fe4d43bf77b0e89c5",
     "mocha": "^5.2.0",
     "typescript": "^2.9.2"
   },
