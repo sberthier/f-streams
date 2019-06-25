@@ -15,7 +15,7 @@ export {
 
 export const factory = EzFactory;
 
-export { Reader, CompareOptions, ParallelOptions } from './reader';
+export { Reader, CompareOptions, ParallelOptions, PeekableReader } from './reader';
 export { Writer } from './writer';
 
 export function reader(arg: string | any[] | Buffer): EzReader.Reader<any> {
@@ -183,6 +183,8 @@ export {
 export {
 	BinaryReader,
 	BinaryWriter,
+	Reader as BinaryReaderImpl,
+	Writer as BinaryWriterImpl,
 	ReaderOptions as BinaryReaderOptions,
 	WriterOptions as BinaryWriterOptions,
 	reader as binaryReader,
