@@ -27,7 +27,8 @@ const NUMBERS: [string, number][] = [
 export interface ReaderOptions {
     endian?: 'big' | 'little';
 }
-export class Reader extends BaseReader<Buffer> {
+// @ts-ignore
+export class Reader extends BaseReader<Buffer> implements BinaryReader {
     reader: BaseReader<Buffer>;
     options: ReaderOptions;
     pos: number;
@@ -162,7 +163,8 @@ export interface WriterOptions {
     bufSize?: number;
 }
 
-export class Writer extends BaseWriter<Buffer> {
+// @ts-ignore
+export class Writer extends BaseWriter<Buffer> implements BinaryWriter {
     writer: BaseWriter<Buffer>;
     options: WriterOptions;
     pos: number;
