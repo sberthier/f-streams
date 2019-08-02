@@ -95,7 +95,7 @@ function mixedFormatter(ct: MultipartContentType) {
             const headers = part.headers;
             if (!headers) throw new Error('part does not have headers');
             Object.keys(part.headers).forEach(key => {
-                writer.write(Buffer.from(key + ': ' + headers[key] + '\n', 'binary'));
+                writer.write(Buffer.from(key + ': ' + headers[key] + '\n', 'utf8'));
             });
             writer.write(Buffer.from('\n' + boundary + '\n'));
             // cannot use pipe because pipe writes undefined at end.
@@ -214,7 +214,7 @@ function formDataFormatter(ct: MultipartContentType): (reader: Reader<Reader<Buf
             const headers = part.headers;
             if (!headers) throw new Error('part does not have headers');
             Object.keys(part.headers).forEach(key => {
-                writer.write(Buffer.from(key + ': ' + headers[key] + CR_LF, 'binary'));
+                writer.write(Buffer.from(key + ': ' + headers[key] + CR_LF, 'utf8'));
             });
             // cannot use pipe because pipe writes undefined at end.;
             writer.write(Buffer.from(CR_LF));
